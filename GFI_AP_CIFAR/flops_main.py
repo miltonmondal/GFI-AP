@@ -4,11 +4,11 @@ import API as api ###This single-gpu API is used to count flops
 import numpy as np
 from variable_list import V
 from flops_API import get_model_complexity_info
-p_init = 62 ###for whole desired range start point (only use for ct)
-p_start = 62
-p_end = 66
-p_gap = 4
 
+p_init = 40 ###for whole desired range start point (only use for ct)
+p_start = 40
+p_end = 64
+p_gap = 12
 def init_array(dim):
     arr = np.zeros(np.int64(dim))
     return arr
@@ -17,8 +17,9 @@ def init_array(dim):
 def flops_parameters_count(net,p,image_dim):
     macs, params = get_model_complexity_info(net, image_dim, as_strings=False, print_per_layer_stat=False,
                                              verbose=False)
-    net.restore_pruned_state(V.base_path_results + '/Pruning_Desired ' + str(p * 100) + '%' + '/retained_model')
-
+    net.restore_pruned_state(V.base_path_results +
+                             '/Pruning_Desired ' + str(p * 100) +
+                             '%' + '/retained_model', arch_only= True)
     macs_pruned, params_pruned = get_model_complexity_info(net, image_dim, as_strings=False,
                                                            print_per_layer_stat=False,
                                                            verbose=False)
@@ -32,8 +33,7 @@ count = (p_end - p_init)/p_gap
 curr_p, flops_p, flops_per, params_p, params_per= [init_array(count) for i in range(5)]
 
 for p_per in range(p_start, p_end, p_gap):
-    net = api.Models(model=V.model_str, num_layers=V.n_l, num_transition_shape=1 * 1, num_linear_units=512,
-                     num_class=V.n_c).net()
+    net = api.Models(model=V.model_str, num_layers=V.n_l).net()
     p = p_per / 100
     ct = np.int64((p_per - p_init) / p_gap)
     macs, macs_pruned, params, params_pruned = flops_parameters_count(net, p, V.image_dim)

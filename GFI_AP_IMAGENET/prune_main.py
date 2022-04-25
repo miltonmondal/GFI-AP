@@ -13,7 +13,7 @@ p_gap = 10
 ## first two function call (when s = 0) just one time **(do not use multi gpu for these two functions)
 s = 1
 ### starting layer for retraining (resume capability)
-sl = 0
+sl = 8
 r_flag = 1 ## 0 means not 'retraining mode'
 ##maximum retrain count for each layer (meaninful when r_flag = 1)(r_count =2 imagenet, 4 others)
 r_count = 2 #4
@@ -43,6 +43,7 @@ n_batch_mean = 1000
 ## Only network is assigned in main function, rest all are assigned in variable list
 # net = api.Models(model=V.model_str, num_layers=V.n_l, ).net()
 net = api.Models(model=V.model_str, num_layers=V.n_l, num_class= V.n_c).net()
+net.restore_checkpoint(V.restore_checkpoint_path)
 print(net)
 # exit()
 ### retrain & finetune time for each pruning fraction

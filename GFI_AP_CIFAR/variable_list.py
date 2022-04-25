@@ -25,7 +25,7 @@ class V:
     # restore_checkpoint_path = '/home/milton/DATA1/project_results/GFI_AP_input_ckpt/CIFAR10/ResNet32/original_Scratch_resnet32/Training_Results_original_last_epoch/last_epoch.ckpt'
 
     #base path for storing results
-    base_path_results = '/home/milton/DATA1/project_results/GFI_AP_results/CIFAR10_RESNET32_mag_prune'
+    base_path_results = '/home/milton/DATA1/project_results/GFI_AP_results/CIFAR10_RESNET32'
 
     #Uniform Pruning layerwise or Global Pruning (upl= 0  means global pruning)
     upl = 0

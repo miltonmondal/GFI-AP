@@ -8,7 +8,7 @@ import sys
 import torch.optim as optim
 import matplotlib.pyplot as plt
 import numpy as np
-import API as api
+import API_multi as api
 from variable_list import V
 from flops_API import get_model_complexity_info
 ### contains seven functions (first two- only one time call)
@@ -24,44 +24,23 @@ from flops_API import get_model_complexity_info
 # Write functions only
 # No variables! No loops.
 
-def feature_mag_and_imp_score(net, n_b_m):
-    #Create and save importance directly using feature magnitude
-    os.makedirs(V.base_path_results + "/imp_val", exist_ok=True)
-    for l in range(net.max_layers()-V.ig_l):
-        features, label_hist = net.get_features(V.dataset, num_batches=n_b_m, after_layer=l, layer_type='conv',
-                                                return_type='tensor', verbose=True)
-        print("layer: ", l)
-        features = np.array(features)
-        print("Features Shape:", features.shape)
-        # l2 norm of individual feature using all examples
-        importance = np.mean(np.mean(np.mean(np.abs(features), axis=0), axis=1), axis=1)
-        print("importance shape:", importance.shape)
-        importance_layer = []
-        for j in range(net.max_filters(layer=l)):
-            importance_layer.append(importance[j])
-
-        print("importance of imp of layer " + str(l) + "filter", importance_layer)
-        np.savetxt(V.base_path_results + '/imp_val/layer_' + str(l) + '.csv', importance_layer)
-
-
 
 def create_mean_files(net,n_b_m):
     # Create importance files per class per layer
     for l in range(net.max_layers()-V.ig_l):
         features, label_hist = net.get_features(V.dataset, num_batches=n_b_m, after_layer=l, layer_type='conv',
-                                                return_type='tensor', verbose=True)
+                                                return_type='mean', verbose=True)
         print("layer: ", l)
-        features = np.array(features)
+        features = np.array(features[:V.n_c])
         importance = np.zeros(features.shape[2])
         print("Features Shape:", features.shape)
         os.makedirs(V.base_path_results + "/mean_values/l" + str(l), exist_ok=True)
-        print("no. of feature maps", len(features))
-        for j in range(net.max):
-            importance = np.mean(np.mean(np.mean(np.abs(features), axis=0), axis=1), axis=1)
-            print("importance shape:", importance.shape)
-            # importance = np.mean(np.mean(np.mean(np.abs(features[i]), axis=0), axis=1), axis=1)
-            # np.savetxt(V.base_path_results + '/mean_values/l' + str(l)
-            #            + '/mean_layer' + str(l) + "class" + str(i) + '.csv', importance, fmt='%f')
+
+        for i in range(len(features)):
+            importance = np.mean(np.mean(np.mean(np.abs(features[i]), axis=0), axis=1), axis=1)
+
+            np.savetxt(V.base_path_results + '/mean_values/l' + str(l)
+                       + '/mean_layer' + str(l) + "class" + str(i) + '.csv', importance, fmt='%f')
 
 def save_importance(net):
     # Create importance files per layer
@@ -149,8 +128,7 @@ def find_global_threshold(p):
     return threshold
 
 def prune_retrain_block(p,sl,r_flag,r_count,layer_lr,image_dim):
-    net = api.Models(model=V.model_str, num_layers=V.n_l, num_transition_shape=1 * 1, num_linear_units=512,
-                     num_class=V.n_c).net()
+    net = api.Models(model=V.model_str, num_layers=V.n_l, num_class=V.n_c).net()
     g_p = p + (1 - p) / 2
     ### By default set acc_diff to large value (if small then no retraining for non_ImageNet)
     acc_diff = 0.5 ##later used
@@ -174,7 +152,7 @@ def prune_retrain_block(p,sl,r_flag,r_count,layer_lr,image_dim):
     macs, params = get_model_complexity_info(net, image_dim, as_strings=True, print_per_layer_stat=False,
                                              verbose=False)
     print(net.evaluate(V.dataset))
-    if V.dataset_string != 'ImageNet':
+    if r_flag!=0 and V.dataset_string != 'ImageNet':
         tr_acc_org = net.evaluate(V.dataset,train_images= True)
     te_acc_org = net.evaluate(V.dataset, train_images=False)
     temp_count = 0
@@ -187,8 +165,15 @@ def prune_retrain_block(p,sl,r_flag,r_count,layer_lr,image_dim):
     os.makedirs(V.base_path_results + '/Pruning_Desired ' + str(
         p * 100) + '%' + '/layerwise_prune_retain/pruned_checkpoints',
                 exist_ok=True)
+    header_1 = ['layer_number','count', 'effective_lr','test_acc','top5_test_acc']
+    if sl==0:
+        with open(V.base_path_results + '/Pruning_Desired ' + str(
+            p * 100) + '%' + '/layerwise_prune_retain/prune_retrain_summary_layer_lr_'+str(layer_lr)+'.csv',
+                'wt') as results_file:
+            csv_writer = csv.writer(results_file)
+            csv_writer.writerow(header_1)
 
-    optim = torch.optim.SGD(net.parameters(), lr=0.5, momentum=0.9, weight_decay=5e-4, nesterov=True)
+    optim = torch.optim.SGD(net.parameters(), lr=0.5, momentum=0.9, weight_decay=1e-4, nesterov=True)
     net.attach_optimizer(optim)
     net.attach_loss_fn(my_loss)
     # to find parameters of layer
@@ -243,10 +228,10 @@ def prune_retrain_block(p,sl,r_flag,r_count,layer_lr,image_dim):
                 p_indices = ordered_indices[0:int(g_p * net.max_filters(layer=j))]
                 indicator = 'A'
 
-            # if len(p_indices)>V.g_p*(net.max_filters(layer=j)):
+            # if len(p_indices)>g_p*(net.max_filters(layer=j)):
             #     print("majority small then threshold....................................................................")
             #     #prunng 80% parameter (70% filters pruning) (a2 + a )/2  = 0.2
-            #     p_indices=ordered_indices[0:int(V.g_p * net.max_filters(layer=j))]
+            #     p_indices=ordered_indices[0:int(g_p * net.max_filters(layer=j))]
             #     indicator = 'M'
 
             sorted_Arr = np.sort(p_indices)
@@ -254,7 +239,7 @@ def prune_retrain_block(p,sl,r_flag,r_count,layer_lr,image_dim):
             print("p_indices", p_indices)
             # before_param = net.num_parameters()
 
-            if r_flag !=0 and desired_layer > 0:
+            if r_flag != 0 and desired_layer > 0:
                 net.restore_checkpoint(V.base_path_results + '/Pruning_Desired ' + str(p * 100) + '%' +
                                        '/layerwise_prune_retain/pruned_checkpoints/' + 'count'
                                        + str(layer_retrain_count) + '.ckpt')
@@ -264,17 +249,17 @@ def prune_retrain_block(p,sl,r_flag,r_count,layer_lr,image_dim):
             net.save_pruned_state(V.base_path_results + '/Pruning_Desired ' + str(p * 100) + '%'
                                   + '/retained_model_after_' + str(desired_layer) + 'th_layer_prune')
 
+        if r_flag != 0:
+            if V.dataset_string != 'ImageNet':
+                tr_acc = net.evaluate(V.dataset, train_images=True)
+                tr_acc_temp = tr_acc
+                print("Train Accuracy before layerwise retraining:", tr_acc)
+                acc_diff = tr_acc_org[0] - tr_acc_temp[0]
+            te_acc = net.evaluate(V.dataset, train_images=False)
+            te_acc_temp = te_acc
+            print("Test Accuracy before layerwise retraining:", te_acc)
 
-        te_acc = net.evaluate(V.dataset, train_images=False)
-        te_acc_temp = te_acc
-        print("Test Accuracy before layerwise retraining:", te_acc)
-        if V.dataset_string != 'ImageNet':
-            tr_acc = net.evaluate(V.dataset, train_images=True)
-            tr_acc_temp = tr_acc
-            print("Train Accuracy before layerwise retraining:",tr_acc)
-            acc_diff = tr_acc_org[0]- tr_acc_temp[0]
-        if r_flag !=0:
-            while (acc_diff >0.04 and temp_count <= r_count - 1):
+            while (temp_count <= r_count - 1):
                 print("Temporary Test Accuracy during layerwise retraining:", te_acc_temp)
                 layer_retrain_count += 1
                 temp_count += 1
@@ -283,9 +268,11 @@ def prune_retrain_block(p,sl,r_flag,r_count,layer_lr,image_dim):
                                            '/layerwise_prune_retain/pruned_checkpoints/' + 'count'
                                            + str(layer_retrain_count - 1) + '.ckpt')
 
-                optim = torch.optim.SGD(net.parameters(), lr=0.5, momentum=0.9, weight_decay=5e-4, nesterov=True)
+                optim = torch.optim.SGD(net.parameters(), lr=0.5, momentum=0.9, weight_decay=1e-4, nesterov=True)
                 net.attach_optimizer(optim)
-                lear_rate = (te_acc_org[0] - te_acc_temp[0]) * 0.05 * layer_lr
+                lear_rate = ((tr_acc_org[0] - tr_acc_temp[0]) * 0.05 * layer_lr)
+                # lear_rate = 0.01/(temp_count+1)
+                # lear_rate = (tr_acc_org[0] - tr_acc_temp[0]) * 0.05 * layer_lr
                 net.change_optimizer_learning_rate(lear_rate)
                 # net.change_optimizer_learning_rate(0.005)
                 net.start_training(V.dataset, np.int(np.ceil(V.dataset.num_train_images / V.b_size)), 1)
@@ -294,6 +281,12 @@ def prune_retrain_block(p,sl,r_flag,r_count,layer_lr,image_dim):
                 net.save_checkpoint(V.base_path_results + '/Pruning_Desired ' + str(p * 100) + '%' +
                                     '/layerwise_prune_retain/pruned_checkpoints/' + 'count' + str(
                     layer_retrain_count) + '.ckpt')
+                rows = [desired_layer+1,layer_retrain_count, round(lear_rate,6), round(te_acc_temp[0],3),round(te_acc_temp[1],3)]
+                with open(V.base_path_results + '/Pruning_Desired ' + str(p * 100) + '%' + '/layerwise_prune_retain/prune_retrain_summary_layer_lr_'
+                          + str(layer_lr) + '.csv','a') as results_file:
+                    csv_writer = csv.writer(results_file)
+                    csv_writer.writerow(rows)
+
             else:
                 layer_retrain_indicator = 0
                 temp_count = 0
@@ -303,18 +296,19 @@ def prune_retrain_block(p,sl,r_flag,r_count,layer_lr,image_dim):
             # print("Train Accuracy after layerwise retraining:",tr_acc)
             print("Test Accuracy after layerwise retraining:", te_acc)
             print("filter left", net.max_filters(layer=desired_layer))
-            #
             print("acc_after_prunng", net.evaluate(V.dataset))
-            b = net.max_filters(desired_layer)
-            retain_percent = (b * 100) / a
-            print("retain_percentage" + str(retain_percent) + "layer" + str(desired_layer))
-            r_f_l.append(b)
-            p_r_l.append(retain_percent)
-            c_l.append(indicator)
             # a_tr_temp_curr= net.evaluate(V.dataset,train_images= True)
             a_te_temp_curr = net.evaluate(V.dataset, train_images=False)
             # a_tr_l_curr.append(a_tr_temp_curr[0])
             a_te_l_curr.append(a_te_temp_curr[0])
+            #
+
+        b = net.max_filters(desired_layer)
+        retain_percent = (b * 100) / a
+        print("retain_percentage" + str(retain_percent) + "layer" + str(desired_layer))
+        r_f_l.append(b)
+        p_r_l.append(retain_percent)
+        c_l.append(indicator)
 
     print("accuracy before training after pruning", net.evaluate(V.dataset))
     n_final = net.num_parameters()
@@ -397,8 +391,7 @@ def prune_retrain_block(p,sl,r_flag,r_count,layer_lr,image_dim):
         return te_acc_org, te_acc_pruned
 def finetune_retained_model(p,s,epochs,lear1,lear_change_freq,lr_divide_factor):
     best = [0,0]
-    net = api.Models(model=V.model_str, num_layers=V.n_l, num_transition_shape=1 * 1, num_linear_units=512,
-                     num_class=V.n_c).net()
+    net = api.Models(model=V.model_str, num_layers=V.n_l, num_class=V.n_c).net()
     net.restore_checkpoint(V.restore_checkpoint_path)
     print(net.evaluate(V.dataset))
     n_initial = net.num_parameters()
