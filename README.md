@@ -24,6 +24,15 @@ ResNet (18, 34, 50, 101, 152, 20, 32, 44, 56, 110)
 ## Results: 
 Some results from our paper :--
 
+__IMAGENET_RESNET50__ results table
+| Methods           | Baseline  Acc. (%) | Baseline  FLOPs (B) | Pruned  Acc. (%) | Pruned  FLOPs (B) | Acc.  drop (%) | FLOPs  reduction (%) |
+|-------------------|--------------------|---------------------|------------------|-------------------|----------------|----------------------|
+| Taylor-FO-BN-72%  | 76.18              | 4.09                | 74.50            | 2.25              | 1.68           | 44.99                |
+| SFP               | 76.15              | 4.09                | 74.61            | 2.38              | 1.54           | 41.8                 |
+| GFI-AP (p=0.3)    | 75.95              | 3.89                | 74.95            | 2.23              | 1.00           | 42.67                |
+
+<br/>
+
 
 __CIFAR10_RESNET32__ results table
 
@@ -35,14 +44,7 @@ __CIFAR10_RESNET32__ results table
 
 <br/>
 
-__IMAGENET_RESNET50__ results table
-| Methods          | Baseline  Acc. (%) | Baseline  FLOPs (B) | Pruned  Acc. (%) | Pruned  FLOPs (B) | Acc.  drop (%) | FLOPs  reduction (%) |
-| ---------------- | ------------------ | ------------------- | ---------------- | ----------------- | -------------- | -------------------- |
-| Taylor-FO-BN-72% | 76.18              | 4.09                | 74.50            | 2.25              | 1.68           | 44.99                |
-| LFPC             | 76.15              | 4.09                | 74.46            | 1.6               | 1.69           | 60.8                 |
-| GFI-AP (p=0.3)   | 75.95              | 3.89                | 74.95            | 2.23              | 1.00           | 42.67                |
 
-<br/>
 
 ## Sample checkpoints:
 Checkpoints can be found in this google drive folder:
